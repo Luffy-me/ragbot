@@ -19,10 +19,12 @@ WORKDIR /app
 
 COPY backend/requirements.txt /app/requirements.txt
 
-# Install CPU torch first to avoid multi-GB CUDA wheels in the image
+# Install CPU torch first to avoid multi-GB CUDA wheels in the image.
+# Transformers require torch>=2.6 due to CVE-2025-32434.
 RUN pip install --upgrade pip \
-    && pip install --index-url https://download.pytorch.org/whl/cpu torch==2.5.1 \
-    && pip install -r /app/requirements.txt
+    && pip install --index-url https://download.pytorch.org/whl/cpu "torch==2.6.0" \
+    && pip install -r /app/requirements.txt \
+    && python -c "import torch; assert tuple(map(int, torch.__version__.split('+')[0].split('.')[:2])) >= (2, 6), torch.__version__"
 
 COPY backend /app
 
