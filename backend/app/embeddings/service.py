@@ -3,11 +3,23 @@ import logging
 from typing import List, Optional
 
 import numpy as np
+import torch
 from sentence_transformers import SentenceTransformer
 
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
+
+
+def _assert_safe_torch() -> None:
+    version = torch.__version__.split("+")[0]
+    major, minor, *_ = [int(p) for p in version.split(".")]
+    if (major, minor) < (2, 6):
+        raise RuntimeError(
+            f"torch {torch.__version__} is too old for embedding model load "
+            "(need >= 2.6 for CVE-2025-32434). Rebuild the backend image with "
+            "`docker compose build --no-cache backend`."
+        )
 
 
 class EmbeddingService:
@@ -20,10 +32,17 @@ class EmbeddingService:
 
     def _load_model(self) -> SentenceTransformer:
         if self._model is None:
-            logger.info("Loading embedding model %s", self.settings.embedding_model)
+            _assert_safe_torch()
+            logger.info(
+                "Loading embedding model %s (torch %s)",
+                self.settings.embedding_model,
+                torch.__version__,
+            )
+            # Prefer safetensors weights when available to avoid torch.load paths.
             self._model = SentenceTransformer(
                 self.settings.embedding_model,
                 device=self.settings.embedding_device,
+                model_kwargs={"use_safetensors": True},
             )
             logger.info("Embedding model ready")
         return self._model
