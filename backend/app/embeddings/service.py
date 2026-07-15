@@ -38,11 +38,9 @@ class EmbeddingService:
                 self.settings.embedding_model,
                 torch.__version__,
             )
-            # Prefer safetensors weights when available to avoid torch.load paths.
             self._model = SentenceTransformer(
                 self.settings.embedding_model,
                 device=self.settings.embedding_device,
-                model_kwargs={"use_safetensors": True},
             )
             logger.info("Embedding model ready")
         return self._model
