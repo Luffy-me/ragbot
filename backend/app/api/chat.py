@@ -31,11 +31,22 @@ async def chat(
     if not payload.stream:
         return await chat_service.answer(db, user, question)
 
-    _, citations, context_blocks = await chat_service.prepare_stream(db, question)
     user_id = user.id
 
     async def event_stream():
+        # Emit immediately so the UI is not stuck on a blank spinner while
+        # embeddings/Ollama warm up on first request.
+        yield f"data: {json.dumps({'type': 'status', 'content': 'Searching university documents…'})}\n\n"
+        try:
+            _, citations, context_blocks = await chat_service.prepare_stream(db, question)
+        except Exception as exc:  # noqa: BLE001
+            yield f"data: {json.dumps({'type': 'error', 'content': f'Retrieval failed: {exc}'})}\n\n"
+            return
+
         yield f"data: {json.dumps({'type': 'citations', 'citations': [c.model_dump() for c in citations]})}\n\n"
+        if context_blocks:
+            yield f"data: {json.dumps({'type': 'status', 'content': 'Generating answer…'})}\n\n"
+
         answer_parts: list[str] = []
         async for token in ollama_client.stream_generate(question, context_blocks):
             answer_parts.append(token)

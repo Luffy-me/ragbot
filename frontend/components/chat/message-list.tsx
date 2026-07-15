@@ -7,9 +7,11 @@ import { cn } from "@/lib/utils";
 export function MessageList({
   messages,
   streaming,
+  status,
 }: {
   messages: ChatMessage[];
   streaming?: boolean;
+  status?: string | null;
 }) {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-6">
@@ -30,10 +32,13 @@ export function MessageList({
         </div>
       ))}
       {streaming && (
-        <div className="mr-auto flex items-center gap-1 rounded-2xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
-          <span className="h-1.5 w-1.5 animate-pulse-soft rounded-full bg-primary" />
-          <span className="h-1.5 w-1.5 animate-pulse-soft rounded-full bg-primary [animation-delay:150ms]" />
-          <span className="h-1.5 w-1.5 animate-pulse-soft rounded-full bg-primary [animation-delay:300ms]" />
+        <div className="mr-auto flex items-center gap-2 rounded-2xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <span className="h-1.5 w-1.5 animate-pulse-soft rounded-full bg-primary" />
+            <span className="h-1.5 w-1.5 animate-pulse-soft rounded-full bg-primary [animation-delay:150ms]" />
+            <span className="h-1.5 w-1.5 animate-pulse-soft rounded-full bg-primary [animation-delay:300ms]" />
+          </span>
+          <span>{status || "Thinking…"}</span>
         </div>
       )}
     </div>

@@ -15,6 +15,7 @@ function ChatPageInner() {
   const { token } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [streaming, setStreaming] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -66,27 +67,28 @@ function ChatPageInner() {
       { id: assistantId, role: "assistant", content: "", citations: [] },
     ]);
     setStreaming(true);
+    setStatus("Connecting to knowledge base…");
 
     try {
-      let citationsSet = false;
       for await (const event of api.streamChat(token, question)) {
-        if (event.type === "citations") {
-          citationsSet = true;
+        if (event.type === "status") {
+          setStatus(event.content);
+        } else if (event.type === "citations") {
           setMessages((prev) =>
             prev.map((m) =>
               m.id === assistantId ? { ...m, citations: event.citations } : m,
             ),
           );
         } else if (event.type === "token") {
+          setStatus(null);
           setMessages((prev) =>
             prev.map((m) =>
               m.id === assistantId ? { ...m, content: m.content + event.content } : m,
             ),
           );
+        } else if (event.type === "error") {
+          throw new Error(event.content);
         }
-      }
-      if (!citationsSet) {
-        // no-op; citations may be empty when nothing retrieved
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to get answer";
@@ -98,13 +100,14 @@ function ChatPageInner() {
                 ...m,
                 content:
                   m.content ||
-                  "I couldn't find reliable information in the university's official documents.",
+                  "The assistant could not answer right now. Check that Docker services are running, then try again.",
               }
             : m,
         ),
       );
     } finally {
       setStreaming(false);
+      setStatus(null);
     }
   }
 
@@ -129,7 +132,11 @@ function ChatPageInner() {
               </p>
             </div>
           )}
-          <MessageList messages={messages} streaming={streaming && !messages.at(-1)?.content} />
+          <MessageList
+            messages={messages}
+            streaming={streaming && !messages.at(-1)?.content}
+            status={status}
+          />
           <div ref={bottomRef} />
         </div>
 

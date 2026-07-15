@@ -40,48 +40,65 @@ export async function* streamChat(
   token: string,
   question: string,
 ): AsyncGenerator<
+  | { type: "status"; content: string }
   | { type: "citations"; citations: Citation[] }
   | { type: "token"; content: string }
+  | { type: "error"; content: string }
   | { type: "done"; conversation_id: string }
 > {
-  const response = await fetch(`${getApiUrl()}/chat`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ question, stream: true }),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 180_000);
 
-  if (!response.ok || !response.body) {
-    let detail = "Chat request failed";
-    try {
-      const data = await response.json();
-      detail = data.detail || detail;
-    } catch {
-      // ignore
+  try {
+    const response = await fetch(`${getApiUrl()}/chat`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ question, stream: true }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok || !response.body) {
+      let detail = "Chat request failed";
+      try {
+        const data = await response.json();
+        detail = data.detail || detail;
+      } catch {
+        // ignore
+      }
+      throw new Error(detail);
     }
-    throw new Error(detail);
-  }
 
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const parts = buffer.split("\n\n");
-    buffer = parts.pop() || "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split("\n\n");
+      buffer = parts.pop() || "";
 
-    for (const part of parts) {
-      const line = part.trim();
-      if (!line.startsWith("data:")) continue;
-      const payload = line.slice(5).trim();
-      if (!payload) continue;
-      yield JSON.parse(payload);
+      for (const part of parts) {
+        const line = part.trim();
+        if (!line.startsWith("data:")) continue;
+        const payload = line.slice(5).trim();
+        if (!payload) continue;
+        yield JSON.parse(payload);
+      }
     }
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw new Error(
+        "Chat timed out. Check that Docker, the backend, and Ollama are running.",
+      );
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
