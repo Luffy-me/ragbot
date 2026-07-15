@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+*.log
+
+# Uploads / caches
+uploads/
+backend/uploads/
+
+# Node
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+
+# IDE / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Keep demo sample PDFs
+# (do not ignore docs/samples)
