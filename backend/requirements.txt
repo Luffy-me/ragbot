@@ -17,3 +17,5 @@ pgvector==0.3.6
 aiofiles==24.1.0
 email-validator==2.2.0
 tenacity==9.0.0
+# Install torch separately from the CPU wheel index (see docker/backend.Dockerfile).
+# Required: torch>=2.6.0 (CVE-2025-32434).
