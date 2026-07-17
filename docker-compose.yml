@@ -1,0 +1,115 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: uni-ai-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-uni_ai}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-uni_ai_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-university_ai}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-uni_ai} -d ${POSTGRES_DB:-university_ai}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - uni-ai-net
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: uni-ai-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - uni-ai-net
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 20s
+
+  ollama-init:
+    image: ollama/ollama:latest
+    container_name: uni-ai-ollama-init
+    depends_on:
+      ollama:
+        condition: service_started
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "Waiting for Ollama..."
+        until ollama list >/dev/null 2>&1; do sleep 2; done
+        echo "Pulling Qwen3 8B (this may take a while on first run)..."
+        ollama pull qwen3:8b
+        echo "Model ready."
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - uni-ai-net
+    restart: "no"
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    container_name: uni-ai-backend
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-uni_ai}:${POSTGRES_PASSWORD:-uni_ai_secret}@postgres:5432/${POSTGRES_DB:-university_ai}
+      OLLAMA_BASE_URL: http://ollama:11434
+      UPLOAD_DIR: /app/uploads
+    ports:
+      - "8000:8000"
+    volumes:
+      - uploads_data:/app/uploads
+      - embedding_cache:/root/.cache
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 90s
+    networks:
+      - uni-ai-net
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+    container_name: uni-ai-frontend
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - uni-ai-net
+
+volumes:
+  postgres_data:
+  ollama_data:
+  uploads_data:
+  embedding_cache:
+
+networks:
+  uni-ai-net:
+    driver: bridge
