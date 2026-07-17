@@ -41,6 +41,8 @@ class EmbeddingService:
             self._model = SentenceTransformer(
                 self.settings.embedding_model,
                 device=self.settings.embedding_device,
+                # BGE-M3 ships pytorch_model.bin, not model.safetensors.
+                model_kwargs={"use_safetensors": False},
             )
             logger.info("Embedding model ready")
         return self._model
