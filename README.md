@@ -11,7 +11,7 @@ Students ask questions; the system answers **only** from uploaded official PDFs 
 | Frontend | Next.js (App Router), TypeScript, Tailwind, React Query |
 | Backend | FastAPI, SQLAlchemy, Alembic, Pydantic |
 | Database | PostgreSQL + pgvector |
-| LLM | Ollama · Qwen3 8B |
+| LLM | NVIDIA Inference API (OpenAI-compatible) |
 | Embeddings | BAAI/bge-m3 via sentence-transformers |
 | Docs | PyMuPDF (+ built-in OCR fallback) |
 | Deploy | Docker Compose |
@@ -20,13 +20,14 @@ Students ask questions; the system answers **only** from uploaded official PDFs 
 
 ```bash
 cp .env.example .env
+# add your NVIDIA_API_KEY in .env
 docker compose up --build
 ```
 
 First boot will:
 
 1. Start Postgres with pgvector
-2. Start Ollama and pull `qwen3:8b`
+2. Start backend and frontend services
 3. Run migrations + seed users
 4. Download the embedding model on first index/chat
 5. Serve API on `:8000` and UI on `:3000`
@@ -70,7 +71,7 @@ Then sign in as admin → **Admin** → upload `docs/samples/student_handbook.pd
 4. Embeddings are generated with **BAAI/bge-m3**
 5. Chunks + vectors are stored in PostgreSQL (`pgvector`)
 6. Chat queries retrieve top-k similar chunks
-7. Only retrieved context is sent to **Qwen3**
+7. Only retrieved context is sent to the configured **NVIDIA model**
 8. Answer + citations are returned (document + page)
 
 If retrieval finds nothing reliable, the assistant replies:
@@ -86,7 +87,7 @@ cd backend
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-# start postgres + ollama separately, then:
+# start postgres and set NVIDIA_API_KEY in your env/.env, then:
 alembic upgrade head
 python -m app.bootstrap
 uvicorn app.main:app --reload --port 8000

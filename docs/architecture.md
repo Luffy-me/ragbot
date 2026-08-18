@@ -15,7 +15,7 @@ Student UI ──JWT──▶ FastAPI /chat
                       ├─ embed question (bge-m3)
                       ├─ vector search (pgvector)
                       ├─ build context blocks
-                      ├─ stream answer (Ollama Qwen3)
+                      ├─ stream answer (NVIDIA Inference API model)
                       └─ persist chat_history + citations
 ```
 

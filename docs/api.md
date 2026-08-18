@@ -64,4 +64,4 @@ Returns the authenticated user's recent Q&A pairs with citations.
 
 ### GET /health
 
-Reports app, database, and Ollama availability.
+Reports app, database, and NVIDIA API availability.

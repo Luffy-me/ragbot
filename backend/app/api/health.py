@@ -3,7 +3,7 @@ from sqlalchemy import text
 
 from app.config import get_settings
 from app.database import engine
-from app.rag.llm import ollama_client
+from app.rag.llm import nvidia_client
 from app.schemas import HealthResponse
 
 router = APIRouter(tags=["health"])
@@ -19,13 +19,13 @@ async def health() -> HealthResponse:
     except Exception:  # noqa: BLE001
         db_status = "unavailable"
 
-    ollama_status = "ok" if await ollama_client.health() else "unavailable"
-    overall = "ok" if db_status == "ok" else "degraded"
+    nvidia_status = "ok" if await nvidia_client.health() else "unavailable"
+    overall = "ok" if db_status == "ok" and nvidia_status == "ok" else "degraded"
 
     return HealthResponse(
         status=overall,
         app=settings.app_name,
         database=db_status,
-        ollama=ollama_status,
+        nvidia=nvidia_status,
         embedding_model=settings.embedding_model,
     )

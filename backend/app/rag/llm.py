@@ -32,22 +32,30 @@ def sanitize_answer(text: str) -> str:
     return THINK_TAG_RE.sub("", text or "").strip()
 
 
-class OllamaClient:
+class NvidiaClient:
     def __init__(self) -> None:
         self.settings = get_settings()
 
     @property
     def generate_url(self) -> str:
-        return f"{self.settings.ollama_base_url.rstrip('/')}/api/generate"
+        return f"{self.settings.nvidia_base_url.rstrip('/')}/chat/completions"
 
     @property
-    def tags_url(self) -> str:
-        return f"{self.settings.ollama_base_url.rstrip('/')}/api/tags"
+    def models_url(self) -> str:
+        return f"{self.settings.nvidia_base_url.rstrip('/')}/models"
+
+    def _headers(self) -> dict[str, str]:
+        return {
+            "Authorization": f"******",
+            "Content-Type": "application/json",
+        }
 
     async def health(self) -> bool:
+        if not self.settings.nvidia_api_key:
+            return False
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
-                response = await client.get(self.tags_url)
+                response = await client.get(self.models_url, headers=self._headers())
                 return response.status_code == 200
         except Exception:  # noqa: BLE001
             return False
@@ -55,40 +63,49 @@ class OllamaClient:
     def _build_prompt(self, question: str, context_blocks: List[str]) -> str:
         context = "\n\n".join(context_blocks) if context_blocks else "(no relevant context)"
         return (
-            f"{SYSTEM_PROMPT}\n\n"
             f"Context:\n{context}\n\n"
             f"Student question: {question}\n\n"
-            f"Answer:"
+            "Answer:"
         )
 
     def _payload(self, prompt: str, stream: bool) -> dict:
         return {
-            "model": self.settings.ollama_model,
-            "prompt": prompt,
+            "model": self.settings.nvidia_model,
+            "messages": [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ],
             "stream": stream,
-            "think": False,
-            "options": {
-                "temperature": 0.1,
-                "top_p": 0.9,
-            },
+            "temperature": 0.1,
+            "top_p": 0.9,
         }
 
     async def generate(self, question: str, context_blocks: List[str]) -> str:
         if not context_blocks:
             return FALLBACK_ANSWER
+        if not self.settings.nvidia_api_key:
+            return "NVIDIA API key is not configured. Set NVIDIA_API_KEY and retry."
 
         prompt = self._build_prompt(question, context_blocks)
         try:
-            async with httpx.AsyncClient(timeout=self.settings.ollama_timeout) as client:
+            async with httpx.AsyncClient(timeout=self.settings.nvidia_timeout) as client:
                 response = await client.post(
-                    self.generate_url, json=self._payload(prompt, stream=False)
+                    self.generate_url,
+                    json=self._payload(prompt, stream=False),
+                    headers=self._headers(),
                 )
                 response.raise_for_status()
                 data = response.json()
-                answer = sanitize_answer((data.get("response") or "").strip())
+                answer = sanitize_answer(
+                    (
+                        data.get("choices", [{}])[0]
+                        .get("message", {})
+                        .get("content", "")
+                    ).strip()
+                )
                 return answer or FALLBACK_ANSWER
         except Exception as exc:  # noqa: BLE001
-            logger.exception("Ollama generation failed: %s", exc)
+            logger.exception("NVIDIA generation failed: %s", exc)
             return (
                 "The language model is temporarily unavailable. "
                 "Please try again in a moment."
@@ -100,12 +117,18 @@ class OllamaClient:
         if not context_blocks:
             yield FALLBACK_ANSWER
             return
+        if not self.settings.nvidia_api_key:
+            yield "NVIDIA API key is not configured. Set NVIDIA_API_KEY and retry."
+            return
 
         prompt = self._build_prompt(question, context_blocks)
         try:
-            async with httpx.AsyncClient(timeout=self.settings.ollama_timeout) as client:
+            async with httpx.AsyncClient(timeout=self.settings.nvidia_timeout) as client:
                 async with client.stream(
-                    "POST", self.generate_url, json=self._payload(prompt, stream=True)
+                    "POST",
+                    self.generate_url,
+                    json=self._payload(prompt, stream=True),
+                    headers=self._headers(),
                 ) as response:
                     response.raise_for_status()
                     raw = ""
@@ -113,8 +136,15 @@ class OllamaClient:
                     async for line in response.aiter_lines():
                         if not line:
                             continue
-                        data = json.loads(line)
-                        token = data.get("response")
+                        payload = line[5:].strip() if line.startswith("data:") else line.strip()
+                        if not payload or payload == "[DONE]":
+                            continue
+                        data = json.loads(payload)
+                        token = (
+                            data.get("choices", [{}])[0]
+                            .get("delta", {})
+                            .get("content")
+                        )
                         if token:
                             raw += token
                             cleaned = sanitize_answer(raw)
@@ -122,16 +152,14 @@ class OllamaClient:
                                 delta = cleaned[len(emitted) :]
                                 emitted = cleaned
                                 yield delta
-                        if data.get("done"):
-                            break
                     if not emitted:
                         yield FALLBACK_ANSWER
         except Exception as exc:  # noqa: BLE001
-            logger.exception("Ollama streaming failed: %s", exc)
+            logger.exception("NVIDIA streaming failed: %s", exc)
             yield (
                 "The language model is temporarily unavailable. "
                 "Please try again in a moment."
             )
 
 
-ollama_client = OllamaClient()
+nvidia_client = NvidiaClient()

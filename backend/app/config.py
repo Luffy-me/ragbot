@@ -23,9 +23,10 @@ class Settings(BaseSettings):
 
     cors_origins: str = "http://localhost:3000"
 
-    ollama_base_url: str = "http://localhost:11434"
-    ollama_model: str = "qwen3:8b"
-    ollama_timeout: int = 120
+    nvidia_api_key: str = ""
+    nvidia_base_url: str = "https://integrate.api.nvidia.com/v1"
+    nvidia_model: str = "meta/llama-3.1-8b-instruct"
+    nvidia_timeout: int = 120
 
     embedding_model: str = "BAAI/bge-m3"
     embedding_dimension: int = 1024

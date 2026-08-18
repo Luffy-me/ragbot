@@ -93,7 +93,7 @@ export async function* streamChat(
   } catch (err) {
     if (err instanceof DOMException && err.name === "AbortError") {
       throw new Error(
-        "Chat timed out. Check that Docker, the backend, and Ollama are running.",
+        "Chat timed out. Check that Docker, the backend, and NVIDIA API settings are configured.",
       );
     }
     throw err;

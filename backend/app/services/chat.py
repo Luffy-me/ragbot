@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import ChatHistory, User
-from app.rag.llm import FALLBACK_ANSWER, ollama_client
+from app.rag.llm import FALLBACK_ANSWER, nvidia_client
 from app.rag.service import rag_service
 from app.schemas import ChatHistoryItem, ChatResponse, Citation
 
@@ -23,7 +23,7 @@ class ChatService:
         retrieved = await rag_service.retrieve(db, question)
         citations = rag_service.to_citations(retrieved)
         context_blocks = rag_service.build_context_blocks(retrieved)
-        answer = await ollama_client.generate(question, context_blocks)
+        answer = await nvidia_client.generate(question, context_blocks)
 
         history = ChatHistory(
             user_id=user.id,

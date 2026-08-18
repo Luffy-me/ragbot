@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import AsyncSessionLocal, get_db
 from app.models import User
-from app.rag.llm import ollama_client
+from app.rag.llm import nvidia_client
 from app.schemas import ChatHistoryItem, ChatRequest
 from app.security.deps import get_current_user
 from app.services.chat import chat_service
@@ -35,7 +35,7 @@ async def chat(
 
     async def event_stream():
         # Emit immediately so the UI is not stuck on a blank spinner while
-        # embeddings/Ollama warm up on first request.
+        # embeddings/model calls may warm up on first request.
         yield f"data: {json.dumps({'type': 'status', 'content': 'Searching university documents…'})}\n\n"
         try:
             _, citations, context_blocks = await chat_service.prepare_stream(db, question)
@@ -48,7 +48,7 @@ async def chat(
             yield f"data: {json.dumps({'type': 'status', 'content': 'Generating answer…'})}\n\n"
 
         answer_parts: list[str] = []
-        async for token in ollama_client.stream_generate(question, context_blocks):
+        async for token in nvidia_client.stream_generate(question, context_blocks):
             answer_parts.append(token)
             yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
 

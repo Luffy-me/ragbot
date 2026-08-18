@@ -72,7 +72,7 @@ class HealthResponse(BaseModel):
     status: str
     app: str
     database: str
-    ollama: str
+    nvidia: str
     embedding_model: str
 
 
